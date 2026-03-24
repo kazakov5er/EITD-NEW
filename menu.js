@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EXTENSION ITD NEW - Меню
 // @namespace    https://xn--d1ah4a.com/
-// @version      1.2.3
+// @version      1.2.2
 // @description  Расширение для ITD: EITD
 // @author       You
 // @match        https://xn--d1ah4a.com/*

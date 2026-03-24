@@ -9,7 +9,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addElement
 // @run-at       document-idle
-// ==/UserScript==Tampermonkey
+// ==/UserScript==
 
 (function() {
     'use strict';

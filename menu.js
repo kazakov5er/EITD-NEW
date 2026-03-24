@@ -1,17 +1,78 @@
 // ==UserScript==
 // @name         EXTENSION ITD NEW - Меню
 // @namespace    https://xn--d1ah4a.com/
-// @version      1.2.2
+// @version      1.2.3
 // @description  Расширение для ITD: EITD
 // @author       You
 // @match        https://xn--d1ah4a.com/*
 // @icon         data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJDYXBhXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IiB2aWV3Qm94PSIwIDAgNjEyIDYxMiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNjEyIDYxMjsiIHhtbDpzcGFjZT0icHJlc2VydmUiPjxnPjxnIGlkPSJfNDFfNDNfIj48Zz48cGF0aCBkPSJNNDAzLjkzOSwyOTUuNzQ5bC03OC44MTQsNzguODMzVjE3Mi4xMjVjMC0xMC41NTctOC41NjgtMTkuMTI1LTE5LjEyNS0xOS4xMjVjLTEwLjU1NywwLTE5LjEyNSw4LjU2OC0xOS4xMjUsMTkuMTI1IHYyMDIuNDU3bC03OC44MTQtNzguODE0Yy03LjQ3OC03LjQ3OC0xOS41ODQtNy40NzgtMjcuMDQzLDBjLTcuNDc4LDcuNDc4LTcuNDc4LDE5LjU4NCwwLDI3LjA0MmwxMDguMTksMTA4LjE5IGM0LjU5LDQuNTksMTAuODYzLDYuMDA1LDE2LjgxMiw0Ljk1M2M1LjkyOSwxLjA1MiwxMi4yMjEtMC4zODIsMTYuODExLTQuOTUzbDEwOC4xOS0xMDguMTljNy40NzgtNy40NzgsNy40NzgtMTkuNTgzLDAtMjcuMDQyIEM0MjMuNTIzLDI4OC4yOSw0MTEuNDE3LDI4OC4yOSw0MDMuOTM5LDI5NS43NDl6IE0zMDYsMEMxMzcuMDEyLDAsMCwxMzYuOTkyLDAsMzA2czEzNy4wMTIsMzA2LDMwNiwzMDZzMzA2LTEzNy4wMTIsMzA2LTMwNiBTNDc1LjAwOCwwLDMwNiwweiBNMzA2LDU3My43NWMtMTQ3Ljg3NSwwLTI2Ny43NS0xMTkuODc1LTI2Ny43NS0zMDZDMzguMjUsMTU4LjEyNSwxNTguMTI1LDM4LjI1LDMwNiwzOC4yNSBjMTQ3Ljg3NSwwLDI2Ny43NSwxMTkuODc1LDI2Ny43NSwyNjcuNzVDNTczLjc1LDQ1My44NzUsNDUzLjg3NSw1NzMuNzUsMzA2LDU3My43NXoiPjwvcGF0aD48L2c+PC9nPjwvZz48L3N2Zz4=
 // @grant        GM_xmlhttpRequest
-// @run-at       document-end
-// ==/UserScript==
+// @grant        GM_addElement
+// @run-at       document-idle
+// ==/UserScript==Tampermonkey
 
 (function() {
     'use strict';
+
+    // ============================================
+    // ИНЖЕКЦИЯ В ГЛАВНЫЙ КОНТЕКСТ
+    // ============================================
+    // Tampermonkey с @grant создаёт sandbox, поэтому нужно инжектить
+    // скрипт перехвата fetch в главный контекст страницы
+
+    function injectIntoPageContext() {
+        const script = document.createElement('script');
+        script.textContent = `
+            (function() {
+                const CONFIG = {
+                    apiPatterns: ['/api/users/', '/api/v1/users/', '/users/me', '/users/']
+                };
+
+                let originalFetch = window.fetch;
+
+                window.fetch = async function(...args) {
+                    const url = args[0] instanceof Request ? args[0].url : String(args[0]);
+                    const isApiCall = CONFIG.apiPatterns.some(pattern => url.includes(pattern));
+
+                    const response = await originalFetch.apply(this, args);
+
+                    if (isApiCall && response.clone) {
+                        try {
+                            const clone = response.clone();
+                            const data = await clone.json();
+
+                            let date = null;
+                            if (data && typeof data === 'object') {
+                                if (data.createdAt) date = data.createdAt;
+                                else if (data.author && data.author.createdAt) date = data.author.createdAt;
+                                else if (data.originalPost && data.originalPost.author && data.originalPost.author.createdAt) {
+                                    date = data.originalPost.author.createdAt;
+                                }
+                                else if (data.profile && data.profile.createdAt) date = data.profile.createdAt;
+                                else if ((Array.isArray(data.data) || Array.isArray(data.users)) && data.data && data.data.length > 0 && data.data[0].createdAt) {
+                                    date = data.data[0].createdAt;
+                                }
+                            }
+
+                            if (date) {
+                                window.dispatchEvent(new CustomEvent('itd-reg-date', { detail: { date: date } }));
+                            }
+
+                        } catch (e) {
+                            // Игнорируем не-JSON ответы
+                        }
+                    }
+
+                    return response;
+                };
+            })();
+        `;
+        document.documentElement.appendChild(script);
+        script.remove();
+    }
+
+    // Инжектим сразу
+    injectIntoPageContext();
 
     // ============================================
     // ФУНКЦИИ ПОЛНОЙ ДАТЫ РЕГИСТРАЦИИ (из time.js)
@@ -24,7 +85,14 @@
 
     let lastRegDate = null;
     let isFullDateEnabled = true;
-    let originalFetch = window.fetch;
+
+    // Слушаем события от инжектированного скрипта
+    window.addEventListener('itd-reg-date', (e) => {
+        if (e.detail && e.detail.date) {
+            lastRegDate = e.detail.date;
+            setTimeout(injectRegDate, 100);
+        }
+    });
 
     const formatRegDate = (iso) => {
         if (!iso) return null;
@@ -92,35 +160,27 @@
         });
     };
 
-    const interceptFetch = () => {
-        originalFetch = window.fetch;
+    // Observer для отслеживания появления элементов с датой
+    const regDateObserver = new MutationObserver((mutations) => {
+        if (!isFullDateEnabled || !lastRegDate) return;
 
-        window.fetch = async function(...args) {
-            const url = args[0] instanceof Request ? args[0].url : String(args[0]);
-
-            const response = await originalFetch.apply(this, args);
-
-            const isApiCall = CONFIG.apiPatterns.some(pattern => url.includes(pattern));
-
-            if (isApiCall && isFullDateEnabled && response.clone) {
-                try {
-                    const clone = response.clone();
-                    const data = await clone.json();
-
-                    const date = extractDateFromData(data);
-                    if (date) {
-                        lastRegDate = date;
-                        setTimeout(injectRegDate, 100);
+        for (const mutation of mutations) {
+            if (mutation.addedNodes.length > 0) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === 1) { // Element node
+                        if (node.classList && node.classList.contains('at4eWYfl')) {
+                            setTimeout(injectRegDate, 50);
+                            return;
+                        }
+                        if (node.querySelector && node.querySelector('.at4eWYfl')) {
+                            setTimeout(injectRegDate, 50);
+                            return;
+                        }
                     }
-
-                } catch {
-                    // Игнорируем не-JSON ответы
                 }
             }
-
-            return response;
-        };
-    };
+        }
+    });
 
     window.setFullDateEnabled = (enabled) => {
         isFullDateEnabled = enabled;
@@ -596,7 +656,6 @@
 
     function init() {
         injectStyles();
-        interceptFetch();
 
         // Создаём кнопку меню
         const button = document.createElement('button');
@@ -726,6 +785,7 @@
         setTimeout(() => {
             processPosts();
             downloadObserver.observe(document.body, { childList: true, subtree: true });
+            regDateObserver.observe(document.body, { childList: true, subtree: true });
         }, 500);
 
         console.log('[EITD] Меню успешно инициализировано');

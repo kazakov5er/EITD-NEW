@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         EXTENSION ITD NEW - Меню
 // @namespace    https://xn--d1ah4a.com/
-// @version      1.2.2
-// @description  Расширение для ITD: EITD
+// @version      1.2.4
+// @description  Расширение для ITD: EITD + Кнопка копирования профиля
 // @author       You
 // @match        https://xn--d1ah4a.com/*
 // @icon         data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJDYXBhXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IiB2aWV3Qm94PSIwIDAgNjEyIDYxMiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNjEyIDYxMjsiIHhtbDpzcGFjZT0icHJlc2VydmUiPjxnPjxnIGlkPSJfNDFfNDNfIj48Zz48cGF0aCBkPSJNNDAzLjkzOSwyOTUuNzQ5bC03OC44MTQsNzguODMzVjE3Mi4xMjVjMC0xMC41NTctOC41NjgtMTkuMTI1LTE5LjEyNS0xOS4xMjVjLTEwLjU1NywwLTE5LjEyNSw4LjU2OC0xOS4xMjUsMTkuMTI1IHYyMDIuNDU3bC03OC44MTQtNzguODE0Yy03LjQ3OC03LjQ3OC0xOS41ODQtNy40NzgtMjcuMDQzLDBjLTcuNDc4LDcuNDc4LTcuNDc4LDE5LjU4NCwwLDI3LjA0MmwxMDguMTksMTA4LjE5IGM0LjU5LDQuNTksMTAuODYzLDYuMDA1LDE2LjgxMiw0Ljk1M2M1LjkyOSwxLjA1MiwxMi4yMjEtMC4zODIsMTYuODExLTQuOTUzbDEwOC4xOS0xMDguMTljNy40NzgtNy40NzgsNy40NzgtMTkuNTgzLDAtMjcuMDQyIEM0MjMuNTIzLDI4OC4yOSw0MTEuNDE3LDI4OC4yOSw0MDMuOTM5LDI5NS43NDl6IE0zMDYsMEMxMzcuMDEyLDAsMCwxMzYuOTkyLDAsMzA2czEzNy4wMTIsMzA2LDMwNiwzMDZzMzA2LTEzNy4wMTIsMzA2LTMwNiBTNDc1LjAwOCwwLDMwNiwweiBNMzA2LDU3My43NWMtMTQ3Ljg3NSwwLTI2Ny43NS0xMTkuODc1LTI2Ny43NS0zMDZDMzguMjUsMTU4LjEyNSwxNTguMTI1LDM4LjI1LDMwNiwzOC4yNSBjMTQ3Ljg3NSwwLDI2Ny43NSwxMTkuODc1LDI2Ny43NSwyNjcuNzVDNTczLjc1LDQ1My44NzUsNDUzLjg3NSw1NzMuNzUsMzA2LDU3My43NXoiPjwvcGF0aD48L2c+PC9nPjwvZz48L3N2Zz4=
@@ -29,6 +29,7 @@
                 };
 
                 let originalFetch = window.fetch;
+                let lastApiResponse = null;
 
                 window.fetch = async function(...args) {
                     const url = args[0] instanceof Request ? args[0].url : String(args[0]);
@@ -40,6 +41,10 @@
                         try {
                             const clone = response.clone();
                             const data = await clone.json();
+
+                            // Сохраняем ответ API для кнопки копирования
+                            lastApiResponse = data;
+                            window.dispatchEvent(new CustomEvent('itd-api-response', { detail: { data: data } }));
 
                             let date = null;
                             if (data && typeof data === 'object') {
@@ -86,11 +91,22 @@
     let lastRegDate = null;
     let isFullDateEnabled = true;
 
+    // ========== МОНИТОРИНГ API + КНОПКА КОПИРОВАНИЯ ==========
+    let lastApiResponse = null;
+    let isCopyButtonEnabled = true;
+
     // Слушаем события от инжектированного скрипта
     window.addEventListener('itd-reg-date', (e) => {
         if (e.detail && e.detail.date) {
             lastRegDate = e.detail.date;
             setTimeout(injectRegDate, 100);
+        }
+    });
+
+    // Слушаем ответы API для кнопки копирования
+    window.addEventListener('itd-api-response', (e) => {
+        if (e.detail && e.detail.data) {
+            lastApiResponse = e.detail.data;
         }
     });
 
@@ -243,7 +259,8 @@
             .itd-window {
                 position: fixed;
                 width: 300px;
-                min-height: 200px;
+                min-width: 200px;
+                min-height: 150px;
                 background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
                 border-radius: 12px;
                 box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(64, 224, 208, 0.3);
@@ -251,7 +268,7 @@
                 color: #fff;
                 font-family: inherit;
                 z-index: 999999;
-                overflow: hidden;
+                overflow: auto;
             }
 
             .itd-window-header {
@@ -431,6 +448,50 @@
             .itd-collapse-header.itd-collapsed + .itd-collapse-content {
                 max-height: 0;
             }
+
+            /* Ручка для изменения размера окна */
+            .itd-resize-handle {
+                position: absolute;
+                width: 15px;
+                height: 15px;
+                bottom: 0;
+                right: 0;
+                cursor: se-resize;
+                background: linear-gradient(135deg, transparent 50%, rgba(64, 224, 208, 0.5) 50%);
+                border-radius: 0 0 12px 0;
+                transition: opacity 0.2s;
+                opacity: 0.6;
+            }
+
+            .itd-resize-handle:hover {
+                opacity: 1;
+                background: linear-gradient(135deg, transparent 50%, rgba(64, 224, 208, 0.8) 50%);
+            }
+
+            /* Кнопка копирования ответа API */
+            .copy-tooltip {
+                visibility: hidden;
+                background-color: #333;
+                color: #fff;
+                text-align: center;
+                padding: 4px 8px;
+                border-radius: 4px;
+                position: absolute;
+                z-index: 1;
+                bottom: 125%;
+                left: 50%;
+                transform: translateX(-50%);
+                white-space: nowrap;
+                opacity: 0;
+                transition: opacity 0.3s;
+                font-size: 11px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            }
+
+            .itd-copy-btn:hover .copy-tooltip {
+                visibility: visible;
+                opacity: 1;
+            }
         `;
 
         const styleSheet = document.createElement('style');
@@ -561,6 +622,125 @@
     }
 
     // ============================================
+    // КНОПКА КОПИРОВАНИЯ ОТВЕТА API
+    // ============================================
+
+    function findTargetElement() {
+        // Ищем контейнер с кнопками действий - ищем по разным селекторам
+        const selectors = [
+            "div.NkXf1I05",
+            "[class*='actions']",
+            "footer[class]"
+        ];
+
+        for (const selector of selectors) {
+            const elements = document.querySelectorAll(selector);
+            
+            for (const el of elements) {
+                const container = el;
+                if (container) {
+                    // Проверяем, есть ли внутри кнопки
+                    const buttons = container.querySelectorAll("button.WsNIl9yN");
+                    if (buttons.length > 0) {
+                        return container;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    function createCopyButton() {
+        const copyButton = document.createElement("button");
+        copyButton.type = "button";
+        copyButton.className = "WsNIl9yN QJCDyxuF BCtviEiQ _2NIyBgLE itd-copy-btn";
+        copyButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span class="copy-tooltip">Копировать информацию о профиле.</span>
+        `;
+        copyButton.style.cssText = `
+            margin-left: 8px;
+            padding: 4px 8px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        `;
+
+        const tooltip = copyButton.querySelector(".copy-tooltip");
+
+        copyButton.addEventListener("mouseenter", function() {
+            tooltip.style.visibility = "visible";
+            tooltip.style.opacity = "1";
+        });
+
+        copyButton.addEventListener("mouseleave", function() {
+            tooltip.style.visibility = "hidden";
+            tooltip.style.opacity = "0";
+        });
+
+        copyButton.addEventListener("click", function() {
+            if (lastApiResponse) {
+                const textToCopy = typeof lastApiResponse === 'string'
+                    ? lastApiResponse
+                    : JSON.stringify(lastApiResponse, null, 2);
+
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const originalText = tooltip.textContent;
+                    tooltip.textContent = "Скопировано!";
+                    tooltip.style.visibility = "visible";
+                    tooltip.style.opacity = "1";
+
+                    setTimeout(() => {
+                        tooltip.textContent = originalText;
+                        tooltip.style.visibility = "hidden";
+                        tooltip.style.opacity = "0";
+                    }, 1500);
+                }).catch(err => {
+                    console.error('Ошибка копирования:', err);
+                });
+            } else {
+                alert("Сначала загрузите данные через API");
+            }
+        });
+
+        return copyButton;
+    }
+
+    function addCopyButton() {
+        if (!isCopyButtonEnabled) return;
+
+        const targetElement = findTargetElement();
+        if (!targetElement) {
+            return false;
+        }
+
+        // Проверяем, есть ли уже наша кнопка
+        const existingButton = targetElement.querySelector('.itd-copy-btn');
+        if (existingButton) {
+            return true;
+        }
+
+        const copyButton = createCopyButton();
+        targetElement.appendChild(copyButton);
+        return true;
+    }
+
+    function removeCopyButtons() {
+        document.querySelectorAll('.itd-copy-btn').forEach(btn => btn.remove());
+    }
+
+    const copyButtonObserver = new MutationObserver(function() {
+        if (isCopyButtonEnabled) {
+            addCopyButton();
+        }
+    });
+
+    // ============================================
     // УНИВЕРСАЛЬНЫЙ DRAGGABLE WINDOW
     // ============================================
 
@@ -568,12 +748,21 @@
         const { id, title, content, positionKey, defaultPosition, onInit } = options;
 
         const savedPosition = JSON.parse(localStorage.getItem(positionKey)) || defaultPosition;
+        const savedSize = JSON.parse(localStorage.getItem(positionKey + 'Size')) || {};
         const window = document.createElement('div');
         window.id = id;
         window.className = 'itd-window';
         window.style.display = 'none';
         window.style.left = savedPosition.left;
         window.style.top = savedPosition.top;
+        
+        // Применяем сохранённый размер или ширину по умолчанию
+        if (savedSize.width) {
+            window.style.width = savedSize.width;
+        }
+        if (savedSize.height) {
+            window.style.height = savedSize.height;
+        }
 
         window.innerHTML = `
             <div class="itd-window-header">
@@ -595,6 +784,7 @@
                 </div>
             </div>
             <div class="itd-window-content">${content}</div>
+            <div class="itd-resize-handle" title="Изменить размер"></div>
         `;
 
         // Логика перетаскивания
@@ -634,6 +824,46 @@
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', onMouseUp);
 
+        // Логика изменения размера
+        const resizeHandle = window.querySelector('.itd-resize-handle');
+        let isResizing = false;
+        let startWidth, startHeight, startResizeX, startResizeY;
+
+        const onResizeMouseDown = (e) => {
+            isResizing = true;
+            startWidth = window.offsetWidth;
+            startHeight = window.offsetHeight;
+            startResizeX = e.clientX;
+            startResizeY = e.clientY;
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        const onResizeMouseMove = (e) => {
+            if (!isResizing) return;
+            const dx = e.clientX - startResizeX;
+            const dy = e.clientY - startResizeY;
+            const newWidth = startWidth + dx;
+            const newHeight = startHeight + dy;
+            
+            // Минимальные размеры
+            if (newWidth > 200) window.style.width = `${newWidth}px`;
+            if (newHeight > 150) window.style.height = `${newHeight}px`;
+        };
+
+        const onResizeMouseUp = () => {
+            isResizing = false;
+            // Сохраняем размер окна
+            const savedSize = JSON.parse(localStorage.getItem(positionKey + 'Size')) || {};
+            savedSize.width = window.style.width;
+            savedSize.height = window.style.height;
+            localStorage.setItem(positionKey + 'Size', JSON.stringify(savedSize));
+        };
+
+        resizeHandle.addEventListener('mousedown', onResizeMouseDown);
+        document.addEventListener('mousemove', onResizeMouseMove);
+        document.addEventListener('mouseup', onResizeMouseUp);
+
         // Кнопка закрытия
         const closeBtn = window.querySelector('.itd-btn-close');
         closeBtn.addEventListener('click', () => {
@@ -644,6 +874,8 @@
         window.cleanupDrag = () => {
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
+            document.removeEventListener('mousemove', onResizeMouseMove);
+            document.removeEventListener('mouseup', onResizeMouseUp);
         };
 
         if (onInit) onInit(window);
@@ -672,6 +904,7 @@
         // Создаём главное меню
         const downloadEnabled = localStorage.getItem('itdPlusDownloadEnabled') !== 'false';
         const fullDateEnabled = localStorage.getItem('itdPlusFullDateEnabled') !== 'false';
+        const copyButtonEnabled = localStorage.getItem('itdPlusCopyButtonEnabled') !== 'false';
         const menuContent = `
             <div class="itd-menu-item">
                 <label class="itd-slider-label">
@@ -687,6 +920,15 @@
                     <span>Полная дата регистрации</span>
                     <div class="itd-slider-container">
                         <input type="checkbox" id="itd-full-date-toggle" ${fullDateEnabled ? 'checked' : ''}>
+                        <span class="itd-slider"></span>
+                    </div>
+                </label>
+            </div>
+            <div class="itd-menu-item">
+                <label class="itd-slider-label">
+                    <span>Кнопка копирования профиля</span>
+                    <div class="itd-slider-container">
+                        <input type="checkbox" id="itd-copy-toggle" ${copyButtonEnabled ? 'checked' : ''}>
                         <span class="itd-slider"></span>
                     </div>
                 </label>
@@ -722,6 +964,22 @@
                     setFullDateEnabled(isEnabled);
                 });
 
+                // Обработчик для кнопки копирования профиля
+                const copyCheckbox = menuWindow.querySelector('#itd-copy-toggle');
+                copyCheckbox.addEventListener('change', function() {
+                    const isEnabled = this.checked;
+                    localStorage.setItem('itdPlusCopyButtonEnabled', isEnabled);
+                    isCopyButtonEnabled = isEnabled;
+                    console.log('[EITD] Кнопка копирования профиля:', isEnabled ? 'включена' : 'выключена');
+
+                    if (isEnabled) {
+                        addCopyButton();
+                        copyButtonObserver.observe(document.body, { childList: true, subtree: true });
+                    } else {
+                        removeCopyButtons();
+                    }
+                });
+
                 // Инициализируем состояние полной даты при загрузке меню
                 const fullDateEnabled = localStorage.getItem('itdPlusFullDateEnabled') !== 'false';
                 setFullDateEnabled(fullDateEnabled);
@@ -749,14 +1007,19 @@
                     if (!confirmed) return;
 
                     localStorage.removeItem('itdPlusMenuPosition');
+                    localStorage.removeItem('itdPlusMenuPositionSize');
                     localStorage.removeItem('itdPlusSettingsPosition');
+                    localStorage.removeItem('itdPlusSettingsPositionSize');
                     localStorage.setItem('itdPlusDownloadEnabled', 'true');
                     localStorage.setItem('itdPlusFullDateEnabled', 'true');
+                    localStorage.setItem('itdPlusCopyButtonEnabled', 'true');
 
                     const checkbox = document.getElementById('itd-download-toggle');
                     const fullDateCheckbox = document.getElementById('itd-full-date-toggle');
+                    const copyCheckbox = document.getElementById('itd-copy-toggle');
                     if (checkbox) checkbox.checked = true;
                     if (fullDateCheckbox) fullDateCheckbox.checked = true;
+                    if (copyCheckbox) copyCheckbox.checked = true;
 
                     menu.style.display = 'none';
                     settingsWindow.style.display = 'none';
@@ -786,6 +1049,14 @@
             processPosts();
             downloadObserver.observe(document.body, { childList: true, subtree: true });
             regDateObserver.observe(document.body, { childList: true, subtree: true });
+            
+            // Инициализация кнопки копирования
+            const copyButtonEnabled = localStorage.getItem('itdPlusCopyButtonEnabled') !== 'false';
+            isCopyButtonEnabled = copyButtonEnabled;
+            if (isCopyButtonEnabled) {
+                addCopyButton();
+                copyButtonObserver.observe(document.body, { childList: true, subtree: true });
+            }
         }, 500);
 
         console.log('[EITD] Меню успешно инициализировано');

@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         EXTENSION ITD NEW - Меню
 // @namespace    https://xn--d1ah4a.com/
-// @version      1.2.4
-// @description  Расширение для ITD: EITD + Кнопка копирования профиля
+// @version      1.2.5
+// @description  Расширение для ITD: EITD
 // @author       You
 // @match        https://xn--d1ah4a.com/*
 // @icon         data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJDYXBhXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IiB2aWV3Qm94PSIwIDAgNjEyIDYxMiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNjEyIDYxMjsiIHhtbDpzcGFjZT0icHJlc2VydmUiPjxnPjxnIGlkPSJfNDFfNDNfIj48Zz48cGF0aCBkPSJNNDAzLjkzOSwyOTUuNzQ5bC03OC44MTQsNzguODMzVjE3Mi4xMjVjMC0xMC41NTctOC41NjgtMTkuMTI1LTE5LjEyNS0xOS4xMjVjLTEwLjU1NywwLTE5LjEyNSw4LjU2OC0xOS4xMjUsMTkuMTI1IHYyMDIuNDU3bC03OC44MTQtNzguODE0Yy03LjQ3OC03LjQ3OC0xOS41ODQtNy40NzgtMjcuMDQzLDBjLTcuNDc4LDcuNDc4LTcuNDc4LDE5LjU4NCwwLDI3LjA0MmwxMDguMTksMTA4LjE5IGM0LjU5LDQuNTksMTAuODYzLDYuMDA1LDE2LjgxMiw0Ljk1M2M1LjkyOSwxLjA1MiwxMi4yMjEtMC4zODIsMTYuODExLTQuOTUzbDEwOC4xOS0xMDguMTljNy40NzgtNy40NzgsNy40NzgtMTkuNTgzLDAtMjcuMDQyIEM0MjMuNTIzLDI4OC4yOSw0MTEuNDE3LDI4OC4yOSw0MDMuOTM5LDI5NS43NDl6IE0zMDYsMEMxMzcuMDEyLDAsMCwxMzYuOTkyLDAsMzA2czEzNy4wMTIsMzA2LDMwNiwzMDZzMzA2LTEzNy4wMTIsMzA2LTMwNiBTNDc1LjAwOCwwLDMwNiwweiBNMzA2LDU3My43NWMtMTQ3Ljg3NSwwLTI2Ny43NS0xMTkuODc1LTI2Ny43NS0zMDZDMzguMjUsMTU4LjEyNSwxNTguMTI1LDM4LjI1LDMwNiwzOC4yNSBjMTQ3Ljg3NSwwLDI2Ny43NSwxMTkuODc1LDI2Ny43NSwyNjcuNzVDNTczLjc1LDQ1My44NzUsNDUzLjg3NSw1NzMuNzUsMzA2LDU3My43NXoiPjwvcGF0aD48L2c+PC9nPjwvZz48L3N2Zz4=
@@ -883,6 +883,137 @@
     }
 
     // ============================================
+    // PREMIUM NICK (из prem.js)
+    // ============================================
+
+    const PREMIUM_WRAPPER_CLASS = 'RrXA28Pz';
+    let isPremiumNickEnabled = true;
+    let premiumStyleElement = null;
+    let premiumObserver = null;
+
+    function getMyDisplayName() {
+        try {
+            const authData = sessionStorage.getItem('auth-storage');
+            if (!authData) return null;
+            const parsed = JSON.parse(authData);
+            return parsed?.state?.profile?.displayName || null;
+        } catch (e) {
+            console.error('Ошибка парсинга auth-storage:', e);
+            return null;
+        }
+    }
+
+    function injectPremiumStyles() {
+        const styleId = 'premium-nicks-style';
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                .j8vGlZKp .${PREMIUM_WRAPPER_CLASS},
+                [data-theme=dark] .j8vGlZKp .${PREMIUM_WRAPPER_CLASS} {
+                    filter: drop-shadow(0 2px 16px rgba(0,128,255,.4));
+                }
+                .j8vGlZKp .${PREMIUM_WRAPPER_CLASS} .lE9vN8i6 {
+                    background: linear-gradient(270deg,#0288d1,#26c6da);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }
+                [data-theme=dark] .j8vGlZKp .${PREMIUM_WRAPPER_CLASS} .lE9vN8i6 {
+                    background: linear-gradient(270deg,#4fc3f7,#e0f7fa);
+                    -webkit-background-clip: text;
+                    background-clip: text;
+                }
+            `;
+            document.head.appendChild(style);
+            premiumStyleElement = style;
+        }
+    }
+
+    function applyPremiumToMyNick() {
+        if (!isPremiumNickEnabled) return;
+
+        const myDisplayName = getMyDisplayName();
+        if (!myDisplayName) return;
+
+        const nickElements = document.querySelectorAll('.lE9vN8i6');
+
+        nickElements.forEach(nickEl => {
+            if (nickEl.textContent.trim() !== myDisplayName) return;
+            if (nickEl.parentElement && nickEl.parentElement.classList.contains(PREMIUM_WRAPPER_CLASS)) return;
+
+            const parentContainer = nickEl.closest('.j8vGlZKp');
+            if (!parentContainer) return;
+
+            const wrapper = document.createElement('span');
+            wrapper.className = PREMIUM_WRAPPER_CLASS;
+            nickEl.parentNode.insertBefore(wrapper, nickEl);
+            wrapper.appendChild(nickEl);
+        });
+    }
+
+    function removePremiumFromAllNicks() {
+        const wrappers = document.querySelectorAll(`.${PREMIUM_WRAPPER_CLASS}`);
+        wrappers.forEach(wrapper => {
+            const nick = wrapper.querySelector('.lE9vN8i6');
+            if (nick) {
+                wrapper.parentNode.insertBefore(nick, wrapper);
+                wrapper.remove();
+            }
+        });
+
+        if (premiumStyleElement) {
+            premiumStyleElement.remove();
+            premiumStyleElement = null;
+        }
+    }
+
+    function startPremiumObserver() {
+        if (premiumObserver) return;
+
+        premiumObserver = new MutationObserver((mutations) => {
+            if (!isPremiumNickEnabled) return;
+
+            let shouldApply = false;
+            for (const mutation of mutations) {
+                if (mutation.addedNodes.length > 0) {
+                    shouldApply = true;
+                    break;
+                }
+            }
+            if (shouldApply) {
+                applyPremiumToMyNick();
+            }
+        });
+
+        premiumObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    function stopPremiumObserver() {
+        if (premiumObserver) {
+            premiumObserver.disconnect();
+            premiumObserver = null;
+        }
+    }
+
+    window.setPremiumNickEnabled = (enabled) => {
+        isPremiumNickEnabled = enabled;
+        console.log('[EITD] Премиум ник:', enabled ? 'включен' : 'выключен');
+
+        if (enabled) {
+            injectPremiumStyles();
+            applyPremiumToMyNick();
+            startPremiumObserver();
+        } else {
+            removePremiumFromAllNicks();
+            stopPremiumObserver();
+        }
+    };
+
+    // ============================================
     // ИНИЦИАЛИЗАЦИЯ
     // ============================================
 
@@ -905,6 +1036,7 @@
         const downloadEnabled = localStorage.getItem('itdPlusDownloadEnabled') !== 'false';
         const fullDateEnabled = localStorage.getItem('itdPlusFullDateEnabled') !== 'false';
         const copyButtonEnabled = localStorage.getItem('itdPlusCopyButtonEnabled') !== 'false';
+        const premiumNickEnabled = localStorage.getItem('itdPlusPremiumNickEnabled') !== 'false';
         const menuContent = `
             <div class="itd-menu-item">
                 <label class="itd-slider-label">
@@ -929,6 +1061,15 @@
                     <span>Кнопка копирования профиля</span>
                     <div class="itd-slider-container">
                         <input type="checkbox" id="itd-copy-toggle" ${copyButtonEnabled ? 'checked' : ''}>
+                        <span class="itd-slider"></span>
+                    </div>
+                </label>
+            </div>
+            <div class="itd-menu-item">
+                <label class="itd-slider-label">
+                    <span>Премиум ник</span>
+                    <div class="itd-slider-container">
+                        <input type="checkbox" id="itd-premium-nick-toggle" ${premiumNickEnabled ? 'checked' : ''}>
                         <span class="itd-slider"></span>
                     </div>
                 </label>
@@ -980,9 +1121,21 @@
                     }
                 });
 
+                // Обработчик для премиум ника
+                const premiumNickCheckbox = menuWindow.querySelector('#itd-premium-nick-toggle');
+                premiumNickCheckbox.addEventListener('change', function() {
+                    const isEnabled = this.checked;
+                    localStorage.setItem('itdPlusPremiumNickEnabled', isEnabled);
+                    setPremiumNickEnabled(isEnabled);
+                });
+
                 // Инициализируем состояние полной даты при загрузке меню
                 const fullDateEnabled = localStorage.getItem('itdPlusFullDateEnabled') !== 'false';
                 setFullDateEnabled(fullDateEnabled);
+
+                // Инициализируем состояние премиум ника при загрузке меню
+                const premiumNickEnabled = localStorage.getItem('itdPlusPremiumNickEnabled') !== 'false';
+                setPremiumNickEnabled(premiumNickEnabled);
             }
         });
         document.body.appendChild(menu);
@@ -1013,13 +1166,16 @@
                     localStorage.setItem('itdPlusDownloadEnabled', 'true');
                     localStorage.setItem('itdPlusFullDateEnabled', 'true');
                     localStorage.setItem('itdPlusCopyButtonEnabled', 'true');
+                    localStorage.setItem('itdPlusPremiumNickEnabled', 'true');
 
                     const checkbox = document.getElementById('itd-download-toggle');
                     const fullDateCheckbox = document.getElementById('itd-full-date-toggle');
                     const copyCheckbox = document.getElementById('itd-copy-toggle');
+                    const premiumNickCheckbox = document.getElementById('itd-premium-nick-toggle');
                     if (checkbox) checkbox.checked = true;
                     if (fullDateCheckbox) fullDateCheckbox.checked = true;
                     if (copyCheckbox) copyCheckbox.checked = true;
+                    if (premiumNickCheckbox) premiumNickCheckbox.checked = true;
 
                     menu.style.display = 'none';
                     settingsWindow.style.display = 'none';

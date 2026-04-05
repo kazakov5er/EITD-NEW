@@ -1,10 +1,11 @@
 // ==UserScript==
-// @name         EXTENSION ITD NEW - Меню
+// @name         EXTENSION ITD NEW
 // @namespace    https://xn--d1ah4a.com/
-// @version      1.2.5
+// @version      1.2.6
 // @description  Расширение для ITD: EITD
-// @author       You
-// @match        https://xn--d1ah4a.com/*
+// @author       EITD Status
+// @match https://*.xn--d1ah4a.com/*
+// @match https://итд.com/*
 // @icon         data:image/svg+xml;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIGlkPSJDYXBhXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IiB2aWV3Qm94PSIwIDAgNjEyIDYxMiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgNjEyIDYxMjsiIHhtbDpzcGFjZT0icHJlc2VydmUiPjxnPjxnIGlkPSJfNDFfNDNfIj48Zz48cGF0aCBkPSJNNDAzLjkzOSwyOTUuNzQ5bC03OC44MTQsNzguODMzVjE3Mi4xMjVjMC0xMC41NTctOC41NjgtMTkuMTI1LTE5LjEyNS0xOS4xMjVjLTEwLjU1NywwLTE5LjEyNSw4LjU2OC0xOS4xMjUsMTkuMTI1IHYyMDIuNDU3bC03OC44MTQtNzguODE0Yy03LjQ3OC03LjQ3OC0xOS41ODQtNy40NzgtMjcuMDQzLDBjLTcuNDc4LDcuNDc4LTcuNDc4LDE5LjU4NCwwLDI3LjA0MmwxMDguMTksMTA4LjE5IGM0LjU5LDQuNTksMTAuODYzLDYuMDA1LDE2LjgxMiw0Ljk1M2M1LjkyOSwxLjA1MiwxMi4yMjEtMC4zODIsMTYuODExLTQuOTUzbDEwOC4xOS0xMDguMTljNy40NzgtNy40NzgsNy40NzgtMTkuNTgzLDAtMjcuMDQyIEM0MjMuNTIzLDI4OC4yOSw0MTEuNDE3LDI4OC4yOSw0MDMuOTM5LDI5NS43NDl6IE0zMDYsMEMxMzcuMDEyLDAsMCwxMzYuOTkyLDAsMzA2czEzNy4wMTIsMzA2LDMwNiwzMDZzMzA2LTEzNy4wMTIsMzA2LTMwNiBTNDc1LjAwOCwwLDMwNiwweiBNMzA2LDU3My43NWMtMTQ3Ljg3NSwwLTI2Ny43NS0xMTkuODc1LTI2Ny43NS0zMDZDMzguMjUsMTU4LjEyNSwxNTguMTI1LDM4LjI1LDMwNiwzOC4yNSBjMTQ3Ljg3NSwwLDI2Ny43NSwxMTkuODc1LDI2Ny43NSwyNjcuNzVDNTczLjc1LDQ1My44NzUsNDUzLjg3NSw1NzMuNzUsMzA2LDU3My43NXoiPjwvcGF0aD48L2c+PC9nPjwvZz48L3N2Zz4=
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addElement
@@ -99,7 +100,9 @@
     window.addEventListener('itd-reg-date', (e) => {
         if (e.detail && e.detail.date) {
             lastRegDate = e.detail.date;
-            setTimeout(injectRegDate, 100);
+            if (isFullDateEnabled) {
+                setTimeout(injectRegDate, 100);
+            }
         }
     });
 
@@ -148,7 +151,7 @@
     };
 
     const injectRegDate = () => {
-        if (!lastRegDate) return;
+        if (!isFullDateEnabled || !lastRegDate) return;
 
         const formatted = formatRegDate(lastRegDate);
         if (!formatted) return;
@@ -176,6 +179,26 @@
         });
     };
 
+    const removeInjectedDates = () => {
+        const items = document.querySelectorAll('.at4eWYfl');
+        items.forEach(item => {
+            const text = item.innerText || item.textContent || '';
+            if (text.includes('Регистрация:') && item.dataset.itdRegDate) {
+                const svgIcon = item.querySelector('svg');
+                if (svgIcon) {
+                    item.innerHTML = '';
+                    item.appendChild(svgIcon.cloneNode(true));
+                    const textSpan = document.createElement('span');
+                    textSpan.style.marginLeft = '6px';
+                    textSpan.innerText = ' Регистрация';
+                    item.appendChild(textSpan);
+                }
+                delete item.dataset.itdRegDate;
+            }
+        });
+        lastRegDate = null;
+    };
+
     // Observer для отслеживания появления элементов с датой
     const regDateObserver = new MutationObserver((mutations) => {
         if (!isFullDateEnabled || !lastRegDate) return;
@@ -198,10 +221,26 @@
         }
     });
 
+    // Отслеживаем смену URL для очистки даты
+    let lastUrl = location.href;
+    const urlObserver = new MutationObserver(() => {
+        if (location.href !== lastUrl) {
+            lastUrl = location.href;
+            // При смене страницы очищаем дату
+            if (isFullDateEnabled) {
+                removeInjectedDates();
+            }
+        }
+    });
+    urlObserver.observe(document.body, { childList: true, subtree: true });
+
     window.setFullDateEnabled = (enabled) => {
         isFullDateEnabled = enabled;
         console.log('[EITD] Полная дата регистрации:', enabled ? 'включена' : 'выключена');
-        if (enabled && lastRegDate) {
+
+        if (!enabled) {
+            removeInjectedDates();
+        } else if (lastRegDate) {
             setTimeout(injectRegDate, 100);
         }
     };
@@ -543,12 +582,26 @@
     function addDownloadButton(postElement) {
         if (postElement.querySelector('.itd-download-btn')) return;
 
-        const images = postElement.querySelectorAll('img');
-        if (images.length === 0) return;
+        // Ищем контейнер контента поста (картинки/видео)
+        const contentContainer = postElement.querySelector('[class*="l4cwyAPN"], [class*="_4vGEh5tJ"]');
 
-        const imageUrls = [...new Set([...images].map(img => img.src))].filter(src =>
-            src.includes('itd.com') || src.startsWith('/') || src.startsWith('http')
-        );
+        if (!contentContainer) return;
+
+        // Проверяем, есть ли видео — если только видео, не добавляем кнопку
+        const video = contentContainer.querySelector('video');
+        const hasOnlyVideo = video && !contentContainer.querySelector('img');
+        if (hasOnlyVideo) return;
+
+        // Ищем только картинки внутри контейнера контента
+        const images = contentContainer.querySelectorAll('img');
+
+        // Фильтруем только CDN-картинки (контент поста, не пины/аватарки)
+        let imageUrls = [...images]
+            .map(img => img.src)
+            .filter(src => src && src.includes('cdn.xn--d1ah4a.com') && src.includes('/images/'));
+
+        // Убираем дубликаты
+        imageUrls = [...new Set(imageUrls)];
 
         if (imageUrls.length === 0) return;
 
@@ -635,7 +688,7 @@
 
         for (const selector of selectors) {
             const elements = document.querySelectorAll(selector);
-            
+
             for (const el of elements) {
                 const container = el;
                 if (container) {
@@ -755,7 +808,7 @@
         window.style.display = 'none';
         window.style.left = savedPosition.left;
         window.style.top = savedPosition.top;
-        
+
         // Применяем сохранённый размер или ширину по умолчанию
         if (savedSize.width) {
             window.style.width = savedSize.width;
@@ -845,7 +898,7 @@
             const dy = e.clientY - startResizeY;
             const newWidth = startWidth + dx;
             const newHeight = startHeight + dy;
-            
+
             // Минимальные размеры
             if (newWidth > 200) window.style.width = `${newWidth}px`;
             if (newHeight > 150) window.style.height = `${newHeight}px`;
@@ -1014,11 +1067,115 @@
     };
 
     // ============================================
+    // ПРИВЕТСТВЕННЫЙ ЭКРАН
+    // ============================================
+
+    function showWelcomeScreen() {
+        // Проверяем, показывали ли уже приветствие
+        if (localStorage.getItem('itdPlusWelcomeShown') === 'true') {
+            return;
+        }
+
+        // Создаём затемнение
+        const overlay = document.createElement('div');
+        overlay.id = 'itd-welcome-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: itdFadeIn 0.3s ease;
+        `;
+
+        // Создаём приветственное окно
+        const welcomeBox = document.createElement('div');
+        welcomeBox.id = 'itd-welcome-box';
+        welcomeBox.style.cssText = `
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(64, 224, 208, 0.4);
+            border: 1px solid rgba(64, 224, 208, 0.3);
+            color: #fff;
+            padding: 40px;
+            text-align: center;
+            max-width: 400px;
+            animation: itdScaleIn 0.4s ease;
+        `;
+
+        welcomeBox.innerHTML = `
+            <div style="font-size: 48px; margin-bottom: 20px;">🎉</div>
+            <h2 style="margin: 0 0 15px 0; font-size: 24px; background: linear-gradient(135deg, #40E0D0 0%, #20B2AA 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Спасибо за скачивание!</h2>
+            <p style="margin: 0 0 30px 0; font-size: 16px; color: rgba(255, 255, 255, 0.8); line-height: 1.6;">Расширение для ITD: EITD успешно установлено</p>
+            <button id="itd-welcome-btn" style="
+                background: linear-gradient(135deg, #40E0D0 0%, #20B2AA 100%);
+                border: none;
+                border-radius: 8px;
+                color: white;
+                padding: 12px 32px;
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.2s;
+                box-shadow: 0 4px 15px rgba(64, 224, 208, 0.4);
+            ">Отлично!</button>
+        `;
+
+        overlay.appendChild(welcomeBox);
+        document.body.appendChild(overlay);
+
+        // Добавляем анимации в стили
+        const welcomeStyles = document.createElement('style');
+        welcomeStyles.id = 'itd-welcome-styles';
+        welcomeStyles.textContent = `
+            @keyframes itdFadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            @keyframes itdScaleIn {
+                from { opacity: 0; transform: scale(0.8); }
+                to { opacity: 1; transform: scale(1); }
+            }
+            #itd-welcome-btn:hover {
+                transform: scale(1.05);
+                box-shadow: 0 6px 20px rgba(64, 224, 208, 0.6);
+            }
+        `;
+        document.head.appendChild(welcomeStyles);
+
+        // Обработчик кнопки
+        const welcomeBtn = document.getElementById('itd-welcome-btn');
+        welcomeBtn.addEventListener('click', () => {
+            overlay.style.animation = 'itdFadeIn 0.3s ease reverse';
+            setTimeout(() => {
+                overlay.remove();
+                welcomeStyles.remove();
+                localStorage.setItem('itdPlusWelcomeShown', 'true');
+            }, 300);
+        });
+
+        // Закрытие по клику на overlay
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                welcomeBtn.click();
+            }
+        });
+    }
+
+    // ============================================
     // ИНИЦИАЛИЗАЦИЯ
     // ============================================
 
     function init() {
         injectStyles();
+
+        // Показываем приветственный экран
+        showWelcomeScreen();
 
         // Создаём кнопку меню
         const button = document.createElement('button');
@@ -1040,7 +1197,7 @@
         const menuContent = `
             <div class="itd-menu-item">
                 <label class="itd-slider-label">
-                    <span>Кнопка скачивания постов</span>
+                    <span>Кнопка скачивания изображений</span>
                     <div class="itd-slider-container">
                         <input type="checkbox" id="itd-download-toggle" ${downloadEnabled ? 'checked' : ''}>
                         <span class="itd-slider"></span>
@@ -1163,6 +1320,7 @@
                     localStorage.removeItem('itdPlusMenuPositionSize');
                     localStorage.removeItem('itdPlusSettingsPosition');
                     localStorage.removeItem('itdPlusSettingsPositionSize');
+                    localStorage.removeItem('itdPlusWelcomeShown');
                     localStorage.setItem('itdPlusDownloadEnabled', 'true');
                     localStorage.setItem('itdPlusFullDateEnabled', 'true');
                     localStorage.setItem('itdPlusCopyButtonEnabled', 'true');
@@ -1205,7 +1363,7 @@
             processPosts();
             downloadObserver.observe(document.body, { childList: true, subtree: true });
             regDateObserver.observe(document.body, { childList: true, subtree: true });
-            
+
             // Инициализация кнопки копирования
             const copyButtonEnabled = localStorage.getItem('itdPlusCopyButtonEnabled') !== 'false';
             isCopyButtonEnabled = copyButtonEnabled;

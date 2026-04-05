@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EXTENSION ITD NEW
 // @namespace    https://xn--d1ah4a.com/
-// @version      1.2.6
+// @version      1.3
 // @description  Расширение для ITD: EITD
 // @author       EITD Status
 // @match https://*.xn--d1ah4a.com/*
@@ -312,7 +312,7 @@
 
             .itd-window-header {
                 padding: 15px 20px;
-                background: rgba(64, 224, 208, 0.1);
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
                 border-bottom: 1px solid rgba(64, 224, 208, 0.2);
                 display: flex;
                 justify-content: space-between;
@@ -321,6 +321,9 @@
                 user-select: none;
                 font-weight: bold;
                 font-size: 16px;
+                position: sticky;
+                top: 0;
+                z-index: 10;
             }
 
             .itd-window-header-buttons {
@@ -405,6 +408,57 @@
 
             .itd-slider-container input:checked + .itd-slider:before {
                 transform: translateX(24px);
+            }
+
+            /* Range слайдеры для настроек снега */
+            .itd-range-label {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 14px;
+                color: #fff;
+                margin-bottom: 5px;
+            }
+
+            .itd-range-label span:last-child {
+                color: #40E0D0;
+                font-weight: bold;
+            }
+
+            .itd-range-slider {
+                width: 100%;
+                height: 6px;
+                border-radius: 3px;
+                background: #4a4a6a;
+                outline: none;
+                margin: 10px 0 15px 0;
+                -webkit-appearance: none;
+                appearance: none;
+            }
+
+            .itd-range-slider::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: #40E0D0;
+                cursor: pointer;
+                box-shadow: 0 2px 6px rgba(64, 224, 208, 0.4);
+            }
+
+            .itd-range-slider::-moz-range-thumb {
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                background: #40E0D0;
+                cursor: pointer;
+                border: none;
+                box-shadow: 0 2px 6px rgba(64, 224, 208, 0.4);
+            }
+
+            .itd-snow-section {
+                margin-bottom: 15px;
             }
 
             .itd-reset-btn {
@@ -500,6 +554,7 @@
                 border-radius: 0 0 12px 0;
                 transition: opacity 0.2s;
                 opacity: 0.6;
+                z-index: 10;
             }
 
             .itd-resize-handle:hover {
@@ -1168,6 +1223,144 @@
     }
 
     // ============================================
+    // СНЕГ (из sneg.js)
+    // ============================================
+
+    let _snowCanvas = null;
+    let _snowCtx = null;
+    let _snowWidth = 0;
+    let _snowHeight = 0;
+    let _snowflakes = [];
+    let _snowAnimationId = null;
+    let _snowAngle = 0;
+    let _snowIsRunning = false;
+
+    function _getSnowConfig() {
+        return {
+            count: parseInt(localStorage.getItem('itdPlusSnowCount') || '150'),
+            speed: parseFloat(localStorage.getItem('itdPlusSnowSpeed') || '1'),
+            wind: parseFloat(localStorage.getItem('itdPlusSnowWind') || '0.5'),
+            sizeMin: parseFloat(localStorage.getItem('itdPlusSnowSizeMin') || '1'),
+            sizeMax: parseFloat(localStorage.getItem('itdPlusSnowSizeMax') || '4'),
+            opacity: parseFloat(localStorage.getItem('itdPlusSnowOpacity') || '0.8')
+        };
+    }
+
+    function _createSnowflakes() {
+        const config = _getSnowConfig();
+        _snowflakes.length = 0;
+        for (let i = 0; i < config.count; i++) {
+            _snowflakes.push({
+                x: Math.random() * _snowWidth,
+                y: Math.random() * _snowHeight,
+                r: Math.random() * (config.sizeMax - config.sizeMin) + config.sizeMin,
+                d: Math.random() * config.count,
+                speed: Math.random() * config.speed + 0.2,
+                wind: (Math.random() * config.wind * 2 - config.wind) * 0.5
+            });
+        }
+    }
+
+    function _snowDraw() {
+        const config = _getSnowConfig();
+        _snowCtx.clearRect(0, 0, _snowWidth, _snowHeight);
+        _snowCtx.fillStyle = `rgba(255, 255, 255, ${config.opacity})`;
+        _snowCtx.beginPath();
+        for (let i = 0; i < _snowflakes.length; i++) {
+            const f = _snowflakes[i];
+            _snowCtx.moveTo(f.x + f.r, f.y);
+            _snowCtx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+        }
+        _snowCtx.fill();
+        _snowUpdate();
+        _snowAnimationId = requestAnimationFrame(_snowDraw);
+    }
+
+    function _snowUpdate() {
+        const config = _getSnowConfig();
+        _snowAngle += 0.01;
+        for (let i = 0; i < _snowflakes.length; i++) {
+            const f = _snowflakes[i];
+            f.y += Math.pow(f.d, 0.3) * f.speed * 0.3 * config.speed;
+            f.x += Math.sin(_snowAngle + f.d) * config.wind * f.wind;
+
+            if (f.y > _snowHeight + 5) {
+                f.y = -5;
+                f.x = Math.random() * _snowWidth;
+            }
+            if (f.x > _snowWidth + 5) {
+                f.x = -5;
+            } else if (f.x < -5) {
+                f.x = _snowWidth + 5;
+            }
+        }
+    }
+
+    function initSnow() {
+        if (_snowIsRunning) return;
+        _snowIsRunning = true;
+
+        _snowCanvas = document.createElement('canvas');
+        _snowCanvas.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2147483647;
+        `;
+        document.body.appendChild(_snowCanvas);
+
+        _snowCtx = _snowCanvas.getContext('2d');
+        _snowWidth = _snowCanvas.width = window.innerWidth;
+        _snowHeight = _snowCanvas.height = window.innerHeight;
+
+        _createSnowflakes();
+        _snowDraw();
+
+        window.addEventListener('resize', _snowOnResize);
+
+        // Глобальные функции управления для слайдеров
+        window.__setSnowCount = function(n) {
+            localStorage.setItem('itdPlusSnowCount', n);
+            _createSnowflakes();
+        };
+        window.__setSnowSpeed = function(s) { /* speed применяется в draw/update напрямую из localStorage */ };
+        window.__setSnowWind = function(w) { /* wind применяется в update напрямую из localStorage */ };
+        window.__setSnowSize = function(min, max) {
+            localStorage.setItem('itdPlusSnowSizeMin', min);
+            localStorage.setItem('itdPlusSnowSizeMax', max);
+            _createSnowflakes();
+        };
+        window.__setSnowOpacity = function(o) { /* opacity читается из localStorage в draw */ };
+    }
+
+    function stopSnow() {
+        if (!_snowIsRunning) return;
+        cancelAnimationFrame(_snowAnimationId);
+        if (_snowCanvas && _snowCanvas.parentNode) _snowCanvas.parentNode.removeChild(_snowCanvas);
+        _snowIsRunning = false;
+        _snowCanvas = null;
+        _snowCtx = null;
+        _snowflakes = [];
+        window.removeEventListener('resize', _snowOnResize);
+        delete window.__setSnowCount;
+        delete window.__setSnowSpeed;
+        delete window.__setSnowWind;
+        delete window.__setSnowSize;
+        delete window.__setSnowOpacity;
+        console.log('❄️ Снег остановлен.');
+    }
+
+    function _snowOnResize() {
+        if (_snowCanvas) {
+            _snowWidth = _snowCanvas.width = window.innerWidth;
+            _snowHeight = _snowCanvas.height = window.innerHeight;
+        }
+    }
+
+    // ============================================
     // ИНИЦИАЛИЗАЦИЯ
     // ============================================
 
@@ -1194,6 +1387,7 @@
         const fullDateEnabled = localStorage.getItem('itdPlusFullDateEnabled') !== 'false';
         const copyButtonEnabled = localStorage.getItem('itdPlusCopyButtonEnabled') !== 'false';
         const premiumNickEnabled = localStorage.getItem('itdPlusPremiumNickEnabled') !== 'false';
+        const snowEnabled = localStorage.getItem('itdPlusSnowEnabled') !== 'false';
         const menuContent = `
             <div class="itd-menu-item">
                 <label class="itd-slider-label">
@@ -1227,6 +1421,15 @@
                     <span>Премиум ник</span>
                     <div class="itd-slider-container">
                         <input type="checkbox" id="itd-premium-nick-toggle" ${premiumNickEnabled ? 'checked' : ''}>
+                        <span class="itd-slider"></span>
+                    </div>
+                </label>
+            </div>
+            <div class="itd-menu-item">
+                <label class="itd-slider-label">
+                    <span>Снег</span>
+                    <div class="itd-slider-container">
+                        <input type="checkbox" id="itd-snow-toggle" ${snowEnabled ? 'checked' : ''}>
                         <span class="itd-slider"></span>
                     </div>
                 </label>
@@ -1286,6 +1489,20 @@
                     setPremiumNickEnabled(isEnabled);
                 });
 
+                // Обработчик для снега
+                const snowCheckbox = menuWindow.querySelector('#itd-snow-toggle');
+                snowCheckbox.addEventListener('change', function() {
+                    const isEnabled = this.checked;
+                    localStorage.setItem('itdPlusSnowEnabled', isEnabled);
+                    console.log('[EITD] Снег:', isEnabled ? 'включен' : 'выключен');
+
+                    if (isEnabled) {
+                        initSnow();
+                    } else {
+                        stopSnow();
+                    }
+                });
+
                 // Инициализируем состояние полной даты при загрузке меню
                 const fullDateEnabled = localStorage.getItem('itdPlusFullDateEnabled') !== 'false';
                 setFullDateEnabled(fullDateEnabled);
@@ -1293,12 +1510,64 @@
                 // Инициализируем состояние премиум ника при загрузке меню
                 const premiumNickEnabled = localStorage.getItem('itdPlusPremiumNickEnabled') !== 'false';
                 setPremiumNickEnabled(premiumNickEnabled);
+
+                // Инициализируем снег при загрузке, если он включён
+                const snowEnabled = localStorage.getItem('itdPlusSnowEnabled') !== 'false';
+                if (snowEnabled) {
+                    initSnow();
+                }
             }
         });
         document.body.appendChild(menu);
 
         // Создаём окно настроек
+        const snowCountVal = parseInt(localStorage.getItem('itdPlusSnowCount') || '150');
+        const snowSpeedVal = parseFloat(localStorage.getItem('itdPlusSnowSpeed') || '1');
+        const snowWindVal = parseFloat(localStorage.getItem('itdPlusSnowWind') || '0.5');
+        const snowSizeMinVal = parseFloat(localStorage.getItem('itdPlusSnowSizeMin') || '1');
+        const snowSizeMaxVal = parseFloat(localStorage.getItem('itdPlusSnowSizeMax') || '4');
+        const snowOpacityVal = parseFloat(localStorage.getItem('itdPlusSnowOpacity') || '0.8');
+
         const settingsContent = `
+            <div class="itd-snow-section">
+                <div style="font-weight: bold; font-size: 15px; margin-bottom: 15px; color: #40E0D0;">❄️ Настройки снега</div>
+
+                <div class="itd-range-label">
+                    <span>Количество снежинок</span>
+                    <span id="itd-snow-count-val">${snowCountVal}</span>
+                </div>
+                <input type="range" class="itd-range-slider" id="itd-snow-count" min="10" max="500" value="${snowCountVal}">
+
+                <div class="itd-range-label">
+                    <span>Скорость падения</span>
+                    <span id="itd-snow-speed-val">${snowSpeedVal}</span>
+                </div>
+                <input type="range" class="itd-range-slider" id="itd-snow-speed" min="0.1" max="5" step="0.1" value="${snowSpeedVal}">
+
+                <div class="itd-range-label">
+                    <span>Сила ветра</span>
+                    <span id="itd-snow-wind-val">${snowWindVal}</span>
+                </div>
+                <input type="range" class="itd-range-slider" id="itd-snow-wind" min="0" max="3" step="0.1" value="${snowWindVal}">
+
+                <div class="itd-range-label">
+                    <span>Мин. размер</span>
+                    <span id="itd-snow-size-min-val">${snowSizeMinVal}</span>
+                </div>
+                <input type="range" class="itd-range-slider" id="itd-snow-size-min" min="0.5" max="10" step="0.5" value="${snowSizeMinVal}">
+
+                <div class="itd-range-label">
+                    <span>Макс. размер</span>
+                    <span id="itd-snow-size-max-val">${snowSizeMaxVal}</span>
+                </div>
+                <input type="range" class="itd-range-slider" id="itd-snow-size-max" min="1" max="15" step="0.5" value="${snowSizeMaxVal}">
+
+                <div class="itd-range-label">
+                    <span>Прозрачность</span>
+                    <span id="itd-snow-opacity-val">${snowOpacityVal}</span>
+                </div>
+                <input type="range" class="itd-range-slider" id="itd-snow-opacity" min="0" max="1" step="0.1" value="${snowOpacityVal}">
+            </div>
             <button class="itd-reset-btn">Сбросить всё</button>
         `;
 
@@ -1310,6 +1579,59 @@
             defaultPosition: { left: '420px', top: '100px' },
             showSettings: false,
             onInit: (settingsWindow) => {
+                // === Обработчики слайдеров снега ===
+                const snowCountSlider = settingsWindow.querySelector('#itd-snow-count');
+                const snowSpeedSlider = settingsWindow.querySelector('#itd-snow-speed');
+                const snowWindSlider = settingsWindow.querySelector('#itd-snow-wind');
+                const snowSizeMinSlider = settingsWindow.querySelector('#itd-snow-size-min');
+                const snowSizeMaxSlider = settingsWindow.querySelector('#itd-snow-size-max');
+                const snowOpacitySlider = settingsWindow.querySelector('#itd-snow-opacity');
+
+                const snowCountVal = settingsWindow.querySelector('#itd-snow-count-val');
+                const snowSpeedVal = settingsWindow.querySelector('#itd-snow-speed-val');
+                const snowWindVal = settingsWindow.querySelector('#itd-snow-wind-val');
+                const snowSizeMinVal = settingsWindow.querySelector('#itd-snow-size-min-val');
+                const snowSizeMaxVal = settingsWindow.querySelector('#itd-snow-size-max-val');
+                const snowOpacityValEl = settingsWindow.querySelector('#itd-snow-opacity-val');
+
+                snowCountSlider.addEventListener('input', function() {
+                    snowCountVal.textContent = this.value;
+                    localStorage.setItem('itdPlusSnowCount', this.value);
+                    if (window.__setSnowCount) window.__setSnowCount(parseInt(this.value));
+                });
+
+                snowSpeedSlider.addEventListener('input', function() {
+                    snowSpeedVal.textContent = this.value;
+                    localStorage.setItem('itdPlusSnowSpeed', this.value);
+                    if (window.__setSnowSpeed) window.__setSnowSpeed(parseFloat(this.value));
+                });
+
+                snowWindSlider.addEventListener('input', function() {
+                    snowWindVal.textContent = this.value;
+                    localStorage.setItem('itdPlusSnowWind', this.value);
+                    if (window.__setSnowWind) window.__setSnowWind(parseFloat(this.value));
+                });
+
+                snowSizeMinSlider.addEventListener('input', function() {
+                    snowSizeMinVal.textContent = this.value;
+                    localStorage.setItem('itdPlusSnowSizeMin', this.value);
+                    const sizeMax = parseFloat(localStorage.getItem('itdPlusSnowSizeMax') || '4');
+                    if (window.__setSnowSize) window.__setSnowSize(parseFloat(this.value), sizeMax);
+                });
+
+                snowSizeMaxSlider.addEventListener('input', function() {
+                    snowSizeMaxVal.textContent = this.value;
+                    localStorage.setItem('itdPlusSnowSizeMax', this.value);
+                    const sizeMin = parseFloat(localStorage.getItem('itdPlusSnowSizeMin') || '1');
+                    if (window.__setSnowSize) window.__setSnowSize(sizeMin, parseFloat(this.value));
+                });
+
+                snowOpacitySlider.addEventListener('input', function() {
+                    snowOpacityValEl.textContent = this.value;
+                    localStorage.setItem('itdPlusSnowOpacity', this.value);
+                    if (window.__setSnowOpacity) window.__setSnowOpacity(parseFloat(this.value));
+                });
+
                 // Кнопка сброса
                 const resetBtn = settingsWindow.querySelector('.itd-reset-btn');
                 resetBtn.addEventListener('click', () => {
@@ -1321,19 +1643,55 @@
                     localStorage.removeItem('itdPlusSettingsPosition');
                     localStorage.removeItem('itdPlusSettingsPositionSize');
                     localStorage.removeItem('itdPlusWelcomeShown');
+                    localStorage.removeItem('itdPlusSnowCount');
+                    localStorage.removeItem('itdPlusSnowSpeed');
+                    localStorage.removeItem('itdPlusSnowWind');
+                    localStorage.removeItem('itdPlusSnowSizeMin');
+                    localStorage.removeItem('itdPlusSnowSizeMax');
+                    localStorage.removeItem('itdPlusSnowOpacity');
                     localStorage.setItem('itdPlusDownloadEnabled', 'true');
                     localStorage.setItem('itdPlusFullDateEnabled', 'true');
                     localStorage.setItem('itdPlusCopyButtonEnabled', 'true');
                     localStorage.setItem('itdPlusPremiumNickEnabled', 'true');
+                    localStorage.setItem('itdPlusSnowEnabled', 'true');
 
                     const checkbox = document.getElementById('itd-download-toggle');
                     const fullDateCheckbox = document.getElementById('itd-full-date-toggle');
                     const copyCheckbox = document.getElementById('itd-copy-toggle');
                     const premiumNickCheckbox = document.getElementById('itd-premium-nick-toggle');
+                    const snowCheckbox = document.getElementById('itd-snow-toggle');
                     if (checkbox) checkbox.checked = true;
                     if (fullDateCheckbox) fullDateCheckbox.checked = true;
                     if (copyCheckbox) copyCheckbox.checked = true;
                     if (premiumNickCheckbox) premiumNickCheckbox.checked = true;
+                    if (snowCheckbox) snowCheckbox.checked = true;
+
+                    // Сброс слайдеров снега к значениям по умолчанию
+                    const sCount = settingsWindow.querySelector('#itd-snow-count');
+                    const sSpeed = settingsWindow.querySelector('#itd-snow-speed');
+                    const sWind = settingsWindow.querySelector('#itd-snow-wind');
+                    const sSizeMin = settingsWindow.querySelector('#itd-snow-size-min');
+                    const sSizeMax = settingsWindow.querySelector('#itd-snow-size-max');
+                    const sOpacity = settingsWindow.querySelector('#itd-snow-opacity');
+                    if (sCount) sCount.value = 150;
+                    if (sSpeed) sSpeed.value = 1;
+                    if (sWind) sWind.value = 0.5;
+                    if (sSizeMin) sSizeMin.value = 1;
+                    if (sSizeMax) sSizeMax.value = 4;
+                    if (sOpacity) sOpacity.value = 0.8;
+
+                    const sCountV = settingsWindow.querySelector('#itd-snow-count-val');
+                    const sSpeedV = settingsWindow.querySelector('#itd-snow-speed-val');
+                    const sWindV = settingsWindow.querySelector('#itd-snow-wind-val');
+                    const sSizeMinV = settingsWindow.querySelector('#itd-snow-size-min-val');
+                    const sSizeMaxV = settingsWindow.querySelector('#itd-snow-size-max-val');
+                    const sOpacityV = settingsWindow.querySelector('#itd-snow-opacity-val');
+                    if (sCountV) sCountV.textContent = '150';
+                    if (sSpeedV) sSpeedV.textContent = '1';
+                    if (sWindV) sWindV.textContent = '0.5';
+                    if (sSizeMinV) sSizeMinV.textContent = '1';
+                    if (sSizeMaxV) sSizeMaxV.textContent = '4';
+                    if (sOpacityV) sOpacityV.textContent = '0.8';
 
                     menu.style.display = 'none';
                     settingsWindow.style.display = 'none';

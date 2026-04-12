@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EXTENSION ITD NEW
 // @namespace    https://xn--d1ah4a.com/
-// @version      1.3
+// @version      1.3.1
 // @description  Расширение для ITD: EITD
 // @author       EITD Status
 // @match https://*.xn--d1ah4a.com/*
@@ -259,6 +259,17 @@
         injectRegDate();
     };
 
+    window.setPremiumNickTheme = (themeId) => {
+        const normalizedThemeId = getPremiumNickTheme(themeId).id;
+        localStorage.setItem('itdPlusPremiumNickTheme', normalizedThemeId);
+        updatePremiumNickThemeSelection(normalizedThemeId);
+
+        if (isPremiumNickEnabled) {
+            injectPremiumStyles();
+            applyPremiumToMyNick();
+        }
+    };
+
     // ============================================
     // CSS СТИЛИ (вместо инлайновых)
     // ============================================
@@ -472,6 +483,58 @@
                 font-weight: bold;
                 cursor: pointer;
                 transition: all 0.2s;
+            }
+
+            .itd-subsection-label {
+                display: block;
+                margin: 10px 0 8px;
+                color: rgba(255, 255, 255, 0.72);
+                font-size: 12px;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+
+            .itd-nick-theme-grid {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+                margin-top: 10px;
+            }
+
+            .itd-nick-theme-option {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+                padding: 10px 6px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 10px;
+                background: rgba(255, 255, 255, 0.04);
+                color: #fff;
+                cursor: pointer;
+                transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+            }
+
+            .itd-nick-theme-option:hover {
+                transform: translateY(-1px);
+                border-color: rgba(64, 224, 208, 0.4);
+            }
+
+            .itd-nick-theme-option.active {
+                border-color: rgba(64, 224, 208, 0.9);
+                box-shadow: 0 0 0 1px rgba(64, 224, 208, 0.25), 0 8px 18px rgba(0, 0, 0, 0.25);
+                background: rgba(64, 224, 208, 0.08);
+            }
+
+            .itd-nick-theme-preview {
+                width: 100%;
+                height: 14px;
+                border-radius: 999px;
+            }
+
+            .itd-nick-theme-name {
+                font-size: 11px;
+                line-height: 1.1;
             }
 
             .itd-reset-btn:hover {
@@ -995,6 +1058,18 @@
     // ============================================
 
     const PREMIUM_WRAPPER_CLASS = 'RrXA28Pz';
+    const PREMIUM_NICK_THEMES = [
+        { id: 'ocean', name: 'Ocean', gradient: 'linear-gradient(270deg,#00c6ff,#0072ff)', glow: 'rgba(0, 140, 255, 0.45)' },
+        { id: 'sunset', name: 'Sunset', gradient: 'linear-gradient(270deg,#ff9966,#ff5e62)', glow: 'rgba(255, 102, 102, 0.45)' },
+        { id: 'aurora', name: 'Aurora', gradient: 'linear-gradient(270deg,#00f5a0,#00d9f5)', glow: 'rgba(0, 245, 190, 0.42)' },
+        { id: 'royal', name: 'Royal', gradient: 'linear-gradient(270deg,#7f5af0,#2cb67d)', glow: 'rgba(127, 90, 240, 0.45)' },
+        { id: 'gold', name: 'Gold', gradient: 'linear-gradient(270deg,#f9d423,#ffb347)', glow: 'rgba(255, 196, 0, 0.45)' },
+        { id: 'fire', name: 'Fire', gradient: 'linear-gradient(270deg,#ff512f,#dd2476)', glow: 'rgba(255, 71, 87, 0.45)' },
+        { id: 'ice', name: 'Ice', gradient: 'linear-gradient(270deg,#8fd3f4,#84fab0)', glow: 'rgba(132, 250, 176, 0.42)' },
+        { id: 'neon', name: 'Neon', gradient: 'linear-gradient(270deg,#fc00ff,#00dbde)', glow: 'rgba(252, 0, 255, 0.42)' },
+        { id: 'ember', name: 'Ember', gradient: 'linear-gradient(270deg,#f7971e,#ffd200)', glow: 'rgba(247, 151, 30, 0.45)' }
+    ];
+    const DEFAULT_PREMIUM_NICK_THEME_ID = 'ocean';
     let isPremiumNickEnabled = true;
     let premiumStyleElement = null;
     let premiumObserver = null;
@@ -1011,31 +1086,70 @@
         }
     }
 
+    function getPremiumNickThemeId() {
+        const storedThemeId = localStorage.getItem('itdPlusPremiumNickTheme') || DEFAULT_PREMIUM_NICK_THEME_ID;
+        return PREMIUM_NICK_THEMES.some(theme => theme.id === storedThemeId) ? storedThemeId : DEFAULT_PREMIUM_NICK_THEME_ID;
+    }
+
+    function getPremiumNickTheme(themeId = getPremiumNickThemeId()) {
+        return PREMIUM_NICK_THEMES.find(theme => theme.id === themeId) || PREMIUM_NICK_THEMES[0];
+    }
+
+    function renderPremiumNickThemeOptions(selectedThemeId = getPremiumNickThemeId()) {
+        return `
+            <div class="itd-nick-theme-grid" id="itd-premium-nick-theme-grid">
+                ${PREMIUM_NICK_THEMES.map(theme => `
+                    <button
+                        type="button"
+                        class="itd-nick-theme-option ${theme.id === selectedThemeId ? 'active' : ''}"
+                        data-theme-id="${theme.id}"
+                        title="${theme.name}"
+                        aria-label="${theme.name}"
+                    >
+                        <span class="itd-nick-theme-preview" style="background: ${theme.gradient}; box-shadow: 0 0 16px ${theme.glow};"></span>
+                        <span class="itd-nick-theme-name">${theme.name}</span>
+                    </button>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function updatePremiumNickThemeSelection(themeId) {
+        document.querySelectorAll('.itd-nick-theme-option').forEach(option => {
+            option.classList.toggle('active', option.dataset.themeId === themeId);
+        });
+    }
+
     function injectPremiumStyles() {
+        const selectedTheme = getPremiumNickTheme();
         const styleId = 'premium-nicks-style';
-        if (!document.getElementById(styleId)) {
+
+        if (!premiumStyleElement) {
+            premiumStyleElement = document.getElementById(styleId);
+        }
+
+        if (!premiumStyleElement) {
             const style = document.createElement('style');
             style.id = styleId;
-            style.textContent = `
-                .j8vGlZKp .${PREMIUM_WRAPPER_CLASS},
-                [data-theme=dark] .j8vGlZKp .${PREMIUM_WRAPPER_CLASS} {
-                    filter: drop-shadow(0 2px 16px rgba(0,128,255,.4));
-                }
-                .j8vGlZKp .${PREMIUM_WRAPPER_CLASS} .lE9vN8i6 {
-                    background: linear-gradient(270deg,#0288d1,#26c6da);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    background-clip: text;
-                }
-                [data-theme=dark] .j8vGlZKp .${PREMIUM_WRAPPER_CLASS} .lE9vN8i6 {
-                    background: linear-gradient(270deg,#4fc3f7,#e0f7fa);
-                    -webkit-background-clip: text;
-                    background-clip: text;
-                }
-            `;
             document.head.appendChild(style);
             premiumStyleElement = style;
         }
+
+        premiumStyleElement.textContent = `
+            .j8vGlZKp .${PREMIUM_WRAPPER_CLASS},
+            [data-theme=dark] .j8vGlZKp .${PREMIUM_WRAPPER_CLASS} {
+                display: inline-flex;
+                filter: drop-shadow(0 2px 16px ${selectedTheme.glow});
+            }
+            .j8vGlZKp .${PREMIUM_WRAPPER_CLASS} .lE9vN8i6,
+            [data-theme=dark] .j8vGlZKp .${PREMIUM_WRAPPER_CLASS} .lE9vN8i6 {
+                background: ${selectedTheme.gradient};
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                text-shadow: 0 0 16px ${selectedTheme.glow};
+            }
+        `;
     }
 
     function applyPremiumToMyNick() {
@@ -1387,6 +1501,7 @@
         const fullDateEnabled = localStorage.getItem('itdPlusFullDateEnabled') !== 'false';
         const copyButtonEnabled = localStorage.getItem('itdPlusCopyButtonEnabled') !== 'false';
         const premiumNickEnabled = localStorage.getItem('itdPlusPremiumNickEnabled') !== 'false';
+        const premiumNickThemeId = getPremiumNickThemeId();
         const snowEnabled = localStorage.getItem('itdPlusSnowEnabled') !== 'false';
         const menuContent = `
             <div class="itd-menu-item">
@@ -1424,6 +1539,8 @@
                         <span class="itd-slider"></span>
                     </div>
                 </label>
+                <span class="itd-subsection-label">Theme</span>
+                ${renderPremiumNickThemeOptions(premiumNickThemeId)}
             </div>
             <div class="itd-menu-item">
                 <label class="itd-slider-label">
@@ -1490,6 +1607,12 @@
                 });
 
                 // Обработчик для снега
+                menuWindow.querySelectorAll('.itd-nick-theme-option').forEach(option => {
+                    option.addEventListener('click', function() {
+                        setPremiumNickTheme(this.dataset.themeId);
+                    });
+                });
+
                 const snowCheckbox = menuWindow.querySelector('#itd-snow-toggle');
                 snowCheckbox.addEventListener('change', function() {
                     const isEnabled = this.checked;
@@ -1509,6 +1632,7 @@
 
                 // Инициализируем состояние премиум ника при загрузке меню
                 const premiumNickEnabled = localStorage.getItem('itdPlusPremiumNickEnabled') !== 'false';
+                setPremiumNickTheme(getPremiumNickThemeId());
                 setPremiumNickEnabled(premiumNickEnabled);
 
                 // Инициализируем снег при загрузке, если он включён

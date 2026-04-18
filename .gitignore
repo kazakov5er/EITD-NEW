@@ -1,5 +1,4 @@
-# User script specific
-*.user.js
+
 
 # Compiled and build artifacts
 *.pyc
